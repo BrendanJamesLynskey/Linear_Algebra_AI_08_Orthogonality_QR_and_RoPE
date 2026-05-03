@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear Algebra for AI 08 &mdash; Orthogonality, QR &amp; RoPE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+    <style>
+        :root { --bg-primary: #0a0a0a; --bg-card: #0d1117; --bg-code: #161b22; --text-primary: #e6edf3; --text-secondary: #8b949e; --accent: #a78bfa; --accent-dim: #a78bfa44; --accent-glow: #a78bfa33; --accent-2: #f472b6; --accent-3: #fbbf24; --accent-4: #34d399; --border: #21262d; --font-display: 'Space Grotesk', sans-serif; --font-mono: 'JetBrains Mono', 'Fira Code', monospace; --font-body: 'Inter', sans-serif; --max-width: 900px; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-body); font-size: 17px; line-height: 1.7; overflow-x: hidden; }
+        .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem 1.5rem; text-align: center; position: relative; }
+        .hero::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 700px; height: 600px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+        .hero > * { position: relative; z-index: 1; }
+        .series-label { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 1rem; }
+        .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; color: var(--text-primary); line-height: 1.2; margin-bottom: 1rem; }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .subtitle { font-size: 1.1rem; color: var(--text-secondary); max-width: 640px; margin-bottom: 2rem; }
+        .tags { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-bottom: 2.5rem; }
+        .tag { font-family: var(--font-mono); font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); background: var(--accent-dim); white-space: nowrap; }
+        .pipeline { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.25rem; margin-bottom: 1rem; max-width: var(--max-width); }
+        .pipeline-step { font-family: var(--font-mono); font-size: 0.7rem; padding: 0.3rem 0.7rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); white-space: nowrap; }
+        .pipeline-arrow { color: var(--accent); font-size: 0.9rem; font-weight: 700; }
+        .slide { min-height: 100vh; max-width: var(--max-width); margin: 0 auto; padding: 4rem 1.5rem; position: relative; display: flex; flex-direction: column; justify-content: center; }
+        .slide-number { font-family: var(--font-display); font-size: 5rem; font-weight: 700; color: var(--accent-dim); position: absolute; top: 2rem; right: 1.5rem; line-height: 1; user-select: none; }
+        .slide h2 { font-family: var(--font-display); font-size: 1.9rem; font-weight: 700; color: var(--accent); margin-bottom: 1.5rem; line-height: 1.25; }
+        .slide h3 { font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; color: var(--text-primary); margin-top: 1.5rem; margin-bottom: 0.75rem; }
+        .slide p { margin-bottom: 1rem; color: var(--text-secondary); }
+        .slide p strong { color: var(--text-primary); }
+        .slide ul, .slide ol { margin-bottom: 1rem; padding-left: 1.5rem; color: var(--text-secondary); }
+        .slide li { margin-bottom: 0.4rem; }
+        .slide li strong { color: var(--text-primary); }
+        .slide code { background: var(--bg-code); padding: 0.1rem 0.35rem; border-radius: 3px; font-family: var(--font-mono); font-size: 0.85em; color: var(--accent); }
+        .table-wrap { overflow-x: auto; margin: 1.25rem 0; border-radius: 8px; border: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th { background: var(--bg-code); color: var(--accent); font-weight: 600; text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); font-family: var(--font-display); white-space: nowrap; }
+        td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        .diagram-grid { display: grid; gap: 0.75rem; margin: 1.5rem 0; padding: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
+        .diagram-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .diagram-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .diagram-panel { padding: 1rem; background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; }
+        .diagram-panel.accent-border { border-left: 3px solid var(--accent); }
+        .diagram-panel.r { border-left: 3px solid var(--accent-2); }
+        .diagram-panel.y { border-left: 3px solid var(--accent-3); }
+        .diagram-panel.g { border-left: 3px solid var(--accent-4); }
+        .diagram-panel h4 { font-family: var(--font-display); font-size: 1rem; color: var(--accent); margin-bottom: 0.5rem; }
+        .diagram-panel.r h4 { color: var(--accent-2); } .diagram-panel.y h4 { color: var(--accent-3); } .diagram-panel.g h4 { color: var(--accent-4); }
+        .diagram-panel p, .diagram-panel ul { font-size: 0.9rem; }
+        .callout { background: var(--bg-card); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.25rem 0; }
+        .callout p { margin-bottom: 0; }
+        .callout .callout-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
+        .canvas-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1.25rem 0; overflow-x: auto; }
+        .canvas-wrap canvas, .canvas-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+        .control-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1.25rem 0; }
+        .control-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+        .control-row label { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary); min-width: 130px; }
+        .control-row input[type="range"] { flex: 1; min-width: 150px; accent-color: var(--accent); }
+        .control-row .val { font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); min-width: 80px; text-align: right; }
+        .btn { font-family: var(--font-mono); font-size: 0.8rem; padding: 0.4rem 0.9rem; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; cursor: pointer; transition: background 0.15s ease; }
+        .btn:hover { background: rgba(167,139,250,0.25); }
+        .btn.secondary { background: var(--bg-code); color: var(--text-secondary); border-color: var(--border); }
+        .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.75rem; }
+        .metric { background: var(--bg-code); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; text-align: center; }
+        .metric .metric-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; }
+        .metric .metric-value { font-family: var(--font-display); font-size: 1.25rem; color: var(--accent); font-weight: 600; margin-top: 0.2rem; }
+        .contents-list { list-style: none; padding-left: 0; counter-reset: contents; }
+        .contents-list li { counter-increment: contents; padding: 0.6rem 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 1rem; }
+        .contents-list li:last-child { border-bottom: none; }
+        .contents-list li::before { content: counter(contents, decimal-leading-zero); font-family: var(--font-mono); font-size: 0.85rem; color: var(--accent); min-width: 2rem; }
+        .contents-list a { color: var(--text-primary); text-decoration: none; }
+        .contents-list a:hover { color: var(--accent); }
+        .footer { text-align: center; padding: 3rem 1.5rem; color: var(--text-secondary); font-size: 0.85rem; border-top: 1px solid var(--border); max-width: var(--max-width); margin: 0 auto; }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .katex { color: var(--text-primary); } .katex-display { margin: 1rem 0; overflow-x: auto; overflow-y: hidden; }
+        @media (max-width: 640px) { .slide { padding: 3rem 1rem; min-height: auto; } .slide-number { font-size: 3rem; top: 1.5rem; right: 1rem; } .slide h2 { font-size: 1.5rem; } .diagram-grid.cols-2, .diagram-grid.cols-3 { grid-template-columns: 1fr; } .hero h1 { font-size: 1.8rem; } table { font-size: 0.78rem; } }
+    </style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="series-label">Linear Algebra for AI &mdash; Presentation 08</div>
+    <h1>Orthogonality, QR &amp; <span class="accent">RoPE</span></h1>
+    <p class="subtitle">Orthonormal bases are the cleanest way to do anything. QR is how you build them. And RoPE &mdash; the position encoding inside Llama, Qwen, GPT-NeoX, Mistral and most modern transformers &mdash; is just a stack of tiny 2&times;2 rotation matrices.</p>
+
+    <div class="tags">
+        <span class="tag">Gram-Schmidt</span><span class="tag">QR</span>
+        <span class="tag">orthogonal init</span><span class="tag">condition number</span>
+        <span class="tag">RoPE</span><span class="tag">2×2 rotation</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">Gram-Schmidt</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">QR factorisation</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">orthogonal matrices</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">RoPE for transformers</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">Orthonormal Sets &amp; Orthogonal Matrices</a></li>
+        <li><a href="#slide-02">Gram-Schmidt Orthogonalisation</a></li>
+        <li><a href="#slide-03">QR Factorisation</a></li>
+        <li><a href="#slide-04">Householder &amp; Givens &mdash; the Real Algorithms</a></li>
+        <li><a href="#slide-05">Condition Number, Stability, Why $Q$ is Cheap</a></li>
+        <li><a href="#slide-06">Orthogonal Initialisation</a></li>
+        <li><a href="#slide-07">Rotation Matrices in 2D</a></li>
+        <li><a href="#slide-08">RoPE &mdash; Rotary Position Embeddings</a></li>
+        <li><a href="#slide-09">Why RoPE Beats Sinusoidal &amp; Learned Positional</a></li>
+        <li><a href="#slide-10">Interactive: RoPE Visualiser</a></li>
+        <li><a href="#slide-11">Cheat Sheet</a></li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>Orthonormal Sets &amp; Orthogonal Matrices</h2>
+    <p>A set $\{\mathbf{q}_1, \ldots, \mathbf{q}_n\}$ is <strong>orthonormal</strong> if</p>
+    <p>$$\langle \mathbf{q}_i, \mathbf{q}_j \rangle = \delta_{ij} = \begin{cases} 1 &amp; i = j \\ 0 &amp; i \neq j \end{cases}.$$</p>
+
+    <p>Each is a unit vector and they're pairwise perpendicular. A square matrix $Q \in \mathbb{R}^{n\times n}$ whose columns are orthonormal is called <strong>orthogonal</strong>:</p>
+    <p>$$Q^\top Q = Q Q^\top = I, \qquad Q^{-1} = Q^\top.$$</p>
+
+    <h3>Three properties of orthogonal matrices</h3>
+    <ul>
+        <li><strong>Length-preserving:</strong> $\|Q\mathbf{x}\| = \|\mathbf{x}\|$ for all $\mathbf{x}$. ($\|Q\mathbf{x}\|^2 = \mathbf{x}^\top Q^\top Q \mathbf{x} = \mathbf{x}^\top \mathbf{x}$.)</li>
+        <li><strong>Angle-preserving:</strong> $\langle Q\mathbf{x}, Q\mathbf{y}\rangle = \langle \mathbf{x}, \mathbf{y}\rangle$. Multiplication by $Q$ is a rigid motion of the space.</li>
+        <li><strong>$|\det Q| = 1$.</strong> Either $+1$ (rotation) or $-1$ (rotation with reflection).</li>
+    </ul>
+
+    <p>Orthogonal matrices are the maps that don't deform anything &mdash; they rotate (and possibly reflect) but never stretch. They are the cleanest possible linear maps.</p>
+
+    <div class="callout">
+        <div class="callout-label">Why ML loves orthogonal matrices</div>
+        <p>An orthogonal $Q$ satisfies $\sigma_1 = \sigma_n = 1$ &mdash; condition number 1. Multiplying by $Q$ doesn't amplify or attenuate any direction. Stack 100 orthogonal layers and the signal magnitude stays the same; gradients neither vanish nor explode through this part. This is the entire reason orthogonal weight initialisation (slide 06) is a respected baseline.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>Gram-Schmidt Orthogonalisation</h2>
+    <p>Given an arbitrary linearly independent $\{\mathbf{a}_1, \ldots, \mathbf{a}_n\}$, the Gram-Schmidt process produces an orthonormal $\{\mathbf{q}_1, \ldots, \mathbf{q}_n\}$ that spans the same space, by repeatedly subtracting the projection onto the already-built basis:</p>
+
+    <p>$$\tilde{\mathbf{q}}_k = \mathbf{a}_k - \sum_{j=1}^{k-1} \langle \mathbf{a}_k, \mathbf{q}_j\rangle\, \mathbf{q}_j, \qquad \mathbf{q}_k = \frac{\tilde{\mathbf{q}}_k}{\|\tilde{\mathbf{q}}_k\|}.$$</p>
+
+    <p>In words: take $\mathbf{a}_k$, kill its components along all the existing $\mathbf{q}_j$, then normalise.</p>
+
+    <h3>Tells you the QR factorisation for free</h3>
+    <p>By construction, each $\mathbf{a}_k$ lies in the span of $\mathbf{q}_1, \ldots, \mathbf{q}_k$ &mdash; so $\mathbf{a}_k = R_{1k}\mathbf{q}_1 + R_{2k}\mathbf{q}_2 + \cdots + R_{kk}\mathbf{q}_k$, where $R_{jk} = \langle \mathbf{a}_k, \mathbf{q}_j\rangle$ for $j &lt; k$ and $R_{kk} = \|\tilde{\mathbf{q}}_k\|$. Stacking columns:</p>
+    <p>$$A = QR$$</p>
+    <p>with $Q$ orthonormal and $R$ upper triangular. The QR factorisation falls out as a side effect of orthogonalising the columns.</p>
+
+    <h3>Numerical caveat</h3>
+    <p>Classical Gram-Schmidt is unstable in floating point: small errors in early $\mathbf{q}_j$ contaminate later ones, and the resulting $Q$ can be far from orthogonal. The fix is <strong>Modified Gram-Schmidt</strong> (subtract one projection at a time, updating $\mathbf{a}_k$ in place) &mdash; better but still not great. Production libraries use Householder or Givens (next slide).</p>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>QR Factorisation</h2>
+    <p>For any $A \in \mathbb{R}^{m \times n}$ with $m \ge n$, there exist $Q \in \mathbb{R}^{m \times n}$ with orthonormal columns and $R \in \mathbb{R}^{n \times n}$ upper triangular such that</p>
+    <p>$$A = QR.$$</p>
+
+    <p>$R$ is upper triangular &mdash; the same property that makes back-substitution easy. This is what makes QR useful: solving $A\mathbf{x} = \mathbf{b}$ becomes "compute $\mathbf{c} = Q^\top \mathbf{b}$, then back-substitute $R\mathbf{x} = \mathbf{c}$" &mdash; one orthogonal multiplication and one triangular solve.</p>
+
+    <h3>Where QR shows up in ML</h3>
+    <ul>
+        <li><strong>Numerically stable least squares.</strong> $\min \|A\mathbf{x} - \mathbf{b}\|$ via QR avoids forming the badly-conditioned $A^\top A$.</li>
+        <li><strong>The QR algorithm</strong> (the iterative one, distinct from this factorisation): a sequence of QR factorisations of shifted matrices used to find eigenvalues. <code>numpy.linalg.eig</code> uses this under the hood.</li>
+        <li><strong>Gradient-based orthogonalisation in optimisers.</strong> Some natural-gradient and Riemannian-optimisation methods periodically re-orthogonalise weight subspaces using QR.</li>
+        <li><strong>Random orthogonal matrices.</strong> Take a random Gaussian matrix, run QR, output $Q$. The $Q$ is uniformly distributed on the orthogonal group $O(n)$ &mdash; the standard way to sample. This is what PyTorch's <code>nn.init.orthogonal_</code> does.</li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>Householder &amp; Givens &mdash; the Real Algorithms</h2>
+    <p>Production QR uses one of two methods, both stable.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>Householder reflectors</h4>
+            <p>For each column, choose a unit vector $\mathbf{v}$ such that the reflection $H = I - 2\mathbf{v}\mathbf{v}^\top$ zeros out everything below the diagonal in that column. Apply $n$ such reflections; product of reflectors is $Q^\top$, and the modified $A$ is $R$.</p>
+            <p>Each reflector is rank-1 + identity &mdash; cheap to apply. The standard QR algorithm in LAPACK's <code>geqrf</code>.</p>
+        </div>
+        <div class="diagram-panel y">
+            <h4>Givens rotations</h4>
+            <p>2&times;2 rotation embedded in a larger identity, rotating two coordinates at a time to zero one entry. Produces $Q$ as a product of $\binom{n}{2}$ Givens rotations.</p>
+            <p>Slower for dense $A$ but parallelisable, and ideal when $A$ is already nearly triangular (sparse, banded). Used inside the iterative QR-eigenvalue algorithm.</p>
+        </div>
+    </div>
+
+    <h3>Why "$Q$ as a product of small things"</h3>
+    <p>You almost never store an orthogonal $Q$ explicitly &mdash; you store the recipe to apply $Q$ (the list of Householder vectors or Givens angles). Applying it is then $O(n^2)$ instead of $O(n^3)$. Same trick is used inside the FFT, Hadamard transform, butterfly factorisation. <em>Structured orthogonal matrices are everywhere in fast algorithms.</em></p>
+
+    <div class="callout">
+        <div class="callout-label">Why this matters for RoPE</div>
+        <p>The RoPE positional encoding is a giant block-diagonal orthogonal matrix &mdash; a product of $d/2$ independent 2&times;2 Givens rotations applied to consecutive pairs of dimensions. Like a Householder QR, it's never stored explicitly: each rotation is parameterised by a scalar angle that depends on token position. Slide 08 makes this concrete.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>Condition Number, Stability, Why $Q$ is Cheap</h2>
+    <p>The <strong>condition number</strong> of $A$ is</p>
+    <p>$$\kappa(A) = \frac{\sigma_1}{\sigma_n} = \|A\|_2 \, \|A^{-1}\|_2.$$</p>
+    <p>It measures how much $A$ amplifies the worst-case relative error in $\mathbf{x}$ when computing $A\mathbf{x}$. $\kappa = 1$ is perfect (orthogonal matrices); $\kappa = \infty$ means singular.</p>
+
+    <h3>Why orthogonal $Q$ is the cheapest</h3>
+    <ul>
+        <li>$\kappa(Q) = 1$: no amplification of error.</li>
+        <li>$Q^{-1} = Q^\top$: no expensive inverse to compute.</li>
+        <li>Multiplying by $Q$ doesn't change vector lengths or angles.</li>
+    </ul>
+
+    <p>Anywhere in numerical work where you can replace an arbitrary linear map with an orthogonal one, do it. Cholesky is $L L^\top$ with $L$ lower triangular but not orthogonal &mdash; so its $\kappa$ matters. QR is $Q R$ with $\kappa(Q) = 1$, isolating all conditioning in $R$ &mdash; you don't get free conditioning, but you get a clean separation.</p>
+
+    <h3>The conditioning of weight matrices in transformers</h3>
+    <p>Random Gaussian initialisations have $\kappa(W) \approx (1+\sqrt{n/m})/(1 - \sqrt{n/m})$ &mdash; finite for square or wider matrices, but degraded for very tall ones. Adam-trained matrices in the middle of training tend to have worse $\kappa$ than at init. RMSNorm (deck 11) and weight decay both implicitly regularise toward better-conditioned weights.</p>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Orthogonal Initialisation</h2>
+    <p>Saxe, McClelland &amp; Ganguli (ICLR 2014) showed that initialising deep linear networks with random orthogonal matrices keeps the singular spectrum at exactly 1 throughout the network at $t = 0$. Signal neither vanishes nor explodes during the first forward pass; gradients flow uniformly.</p>
+
+    <h3>The recipe</h3>
+    <p>For a weight $W \in \mathbb{R}^{m \times n}$ with $m \le n$ (wider-than-tall):</p>
+    <ol>
+        <li>Sample $G \sim \mathcal{N}(0, 1)^{m \times n}$.</li>
+        <li>Compute QR: $G = QR$ with $Q \in \mathbb{R}^{m \times n}$ orthonormal rows.</li>
+        <li>Set $W = \mathrm{gain} \cdot Q$.</li>
+    </ol>
+
+    <p>For deeper-than-wide matrices, transpose. The "gain" factor compensates for the variance of subsequent activations: $\sqrt{2}$ for ReLU networks (compensating the half-rectifier), 1 for linear, $\approx 5/3$ for tanh. PyTorch's <code>nn.init.orthogonal_(W, gain=...)</code> implements exactly this.</p>
+
+    <h3>How it compares to alternatives</h3>
+    <div class="diagram-grid cols-3">
+        <div class="diagram-panel accent-border">
+            <h4>Xavier / Glorot</h4>
+            <p>Variance scaling: $\sim 1/\sqrt{n_{in}}$. Cheap, no QR. Works for shallow nets.</p>
+        </div>
+        <div class="diagram-panel y">
+            <h4>He / Kaiming</h4>
+            <p>$\sim \sqrt{2/n_{in}}$ &mdash; tuned for ReLU. Default for CNNs.</p>
+        </div>
+        <div class="diagram-panel g">
+            <h4>Orthogonal</h4>
+            <p>Best for very deep <em>linear</em> networks; comparable for nonlinear. Sometimes used with care for RNN recurrent matrices to delay gradient explosion.</p>
+        </div>
+    </div>
+
+    <p>For modern transformers, orthogonal init is rarely the default &mdash; the residual stream and LayerNorm together control signal scale well enough that Xavier-uniform / He-normal are fine. But it's a useful tool when chasing very deep architectures with residual connections turned off (rare in practice).</p>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>Rotation Matrices in 2D</h2>
+    <p>The 2D rotation by angle $\theta$:</p>
+    <p>$$R_\theta = \begin{pmatrix} \cos\theta &amp; -\sin\theta \\ \sin\theta &amp; \cos\theta \end{pmatrix}.$$</p>
+
+    <p>Orthogonal ($R_\theta^\top R_\theta = I$), determinant $+1$ (no reflection), eigenvalues $e^{\pm i\theta}$ over $\mathbb{C}$.</p>
+
+    <h3>Two key properties</h3>
+    <ul>
+        <li><strong>Composition:</strong> $R_\alpha R_\beta = R_{\alpha + \beta}$. Rotations form a group; matrix multiplication corresponds to angle addition.</li>
+        <li><strong>Inner product invariance:</strong> $\langle R_\theta \mathbf{x}, R_\theta \mathbf{y}\rangle = \langle \mathbf{x}, \mathbf{y}\rangle$. Rotating both vectors doesn't change their dot product.</li>
+    </ul>
+
+    <p>The second property is the entire reason RoPE works for attention.</p>
+
+    <h3>The complex-number reading</h3>
+    <p>Identify $\mathbb{R}^2$ with $\mathbb{C}$ via $(x, y) \leftrightarrow x + iy$. Then $R_\theta$ acts as multiplication by $e^{i\theta}$. The composition rule $R_\alpha R_\beta = R_{\alpha + \beta}$ is just $e^{i\alpha} e^{i\beta} = e^{i(\alpha + \beta)}$. And inner product invariance becomes: $\langle e^{i\theta} z_1, e^{i\theta} z_2\rangle = \mathrm{Re}(\overline{e^{i\theta} z_1}\, e^{i\theta} z_2) = \mathrm{Re}(\bar{z}_1 z_2) = \langle z_1, z_2 \rangle$.</p>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>RoPE &mdash; Rotary Position Embeddings</h2>
+    <p>Su et al. (2021) introduced <strong>Rotary Position Embedding</strong> (RoPE), now the dominant position encoding in Llama, Qwen, Mistral, GPT-NeoX, Falcon, DeepSeek and most modern LLMs. It encodes position by <em>rotating</em> the query and key vectors before the attention dot product.</p>
+
+    <h3>The construction, dim by dim</h3>
+    <p>For a $d$-dimensional vector $\mathbf{x}$ at position $m$, group the $d$ coordinates into $d/2$ pairs $(x_{2i-1}, x_{2i})$. Apply a 2&times;2 rotation to each pair, with angle $m\theta_i$:</p>
+    <p>$$\begin{pmatrix} x'_{2i-1} \\ x'_{2i} \end{pmatrix} = \begin{pmatrix} \cos(m\theta_i) &amp; -\sin(m\theta_i) \\ \sin(m\theta_i) &amp; \cos(m\theta_i) \end{pmatrix} \begin{pmatrix} x_{2i-1} \\ x_{2i} \end{pmatrix}.$$</p>
+
+    <p>The rotation frequency $\theta_i$ varies with the pair index:</p>
+    <p>$$\theta_i = \mathrm{base}^{-2(i-1)/d}, \quad \text{typically with}\ \mathrm{base} = 10000.$$</p>
+
+    <p>So the first pair rotates fast (high frequency), the last pair slowly (low frequency). Together the $d/2$ pairs form a frequency comb &mdash; every pair sees position differently.</p>
+
+    <h3>The dot product becomes relative</h3>
+    <p>If $\mathbf{q}$ at position $m$ is rotated to $R_m \mathbf{q}$ and $\mathbf{k}$ at position $n$ is rotated to $R_n \mathbf{k}$, the attention score is</p>
+    <p>$$\langle R_m \mathbf{q}, R_n \mathbf{k}\rangle = \mathbf{q}^\top R_m^\top R_n \mathbf{k} = \mathbf{q}^\top R_{n - m} \mathbf{k}.$$</p>
+
+    <p>(Using $R_m^\top R_n = R_{-m} R_n = R_{n-m}$ block-by-block.) <strong>The score depends only on the relative position $n - m$ &mdash; never on absolute positions.</strong> This is the property that makes RoPE work: the attention pattern between two tokens is a function of their distance, not where they sit in the sequence.</p>
+
+    <div class="callout">
+        <div class="callout-label">Where in the block does RoPE live?</div>
+        <p>Applied to <em>$\mathbf{q}$ and $\mathbf{k}$ only</em>, after the QKV projection and before the dot product. The values $\mathbf{v}$ are not rotated. With MLA (deck 07), RoPE is applied to a small "decoupled" portion of the key vector after up-projection from the latent &mdash; clever workaround to keep MLA compatible with rotary positions.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>Why RoPE Beats Sinusoidal &amp; Learned Positional</h2>
+    <div class="diagram-grid cols-3">
+        <div class="diagram-panel accent-border">
+            <h4>Sinusoidal (Vaswani 2017)</h4>
+            <p>Add a fixed sin/cos position vector to embeddings. Absolute, not relative; degrades for sequences longer than seen at train time. Foundational but historical.</p>
+        </div>
+        <div class="diagram-panel y">
+            <h4>Learned positional embeddings</h4>
+            <p>A learned vector per absolute position. Used by GPT-2, BERT. Hard cap at the longest sequence seen in training; doesn't extrapolate at all.</p>
+        </div>
+        <div class="diagram-panel g">
+            <h4>RoPE</h4>
+            <p>Rotation per pair, angle linear in position. Inherently relative. Extrapolates (somewhat) to longer sequences, especially with frequency interpolation tricks (PI, NTK, YaRN).</p>
+        </div>
+    </div>
+
+    <h3>Length extrapolation</h3>
+    <p>Plain RoPE trained on 4k tokens degrades quickly past 4k &mdash; the high-frequency pairs see angles outside their training distribution. Three families of fix:</p>
+    <ul>
+        <li><strong>Position Interpolation (Chen 2023):</strong> at inference, scale all positions by a factor $&lt; 1$. Reduces angles into the training range. Cheap; loses some local resolution.</li>
+        <li><strong>NTK-aware scaling (bloc97 2023):</strong> scale only the high-frequency components, leaving low frequencies untouched. Preserves local detail.</li>
+        <li><strong>YaRN (Peng 2023):</strong> NTK-by-parts plus an additional attention-temperature factor. The current go-to for clean RoPE extension. Used in Mistral-7B-32k, Llama 3.1 (with adjustments).</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Why RoPE wins overall</div>
+        <p>The key facts: (1) the score depends only on relative position, so the attention pattern transfers across sequence lengths; (2) every pair gets a different frequency, so positional information is encoded in a frequency comb that survives composition with weight matrices; (3) implementing it is two element-wise multiplications and a small permute &mdash; almost free. The combination is hard to beat.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-10">
+    <div class="slide-number">10</div>
+    <h2>Interactive: RoPE Visualiser</h2>
+    <p>The widget shows a $d = 8$-dimensional vector being RoPE-rotated as a function of token position. Each pair of dimensions traces a circle at its own frequency &mdash; high-frequency pairs spin fast, low-frequency pairs almost stand still. The bottom plot shows how the attention dot product between position-0 and position-$m$ evolves with $m$.</p>
+
+    <div class="control-panel">
+        <div class="control-row">
+            <label>Position m</label>
+            <input type="range" id="rope-m" min="0" max="500" step="1" value="0">
+            <span class="val" id="rope-mv">0</span>
+        </div>
+        <div class="control-row">
+            <label>Base</label>
+            <input type="range" id="rope-base" min="100" max="50000" step="100" value="10000">
+            <span class="val" id="rope-bv">10000</span>
+        </div>
+    </div>
+
+    <div class="canvas-wrap">
+        <svg id="rope-svg" viewBox="0 0 700 380" width="700" height="380" xmlns="http://www.w3.org/2000/svg">
+            <rect width="700" height="380" fill="#0d1117"/>
+            <g id="rope-pairs"></g>
+            <g id="rope-dot"></g>
+        </svg>
+    </div>
+
+    <p style="font-size: 0.95rem;">Top: each circle shows one of the 4 dimension-pairs. The pink dot is its current rotated position; the violet path traces history. Bottom: $\mathbf{q}_0^\top R_m \mathbf{k}$ for a fixed $\mathbf{q} = \mathbf{k}$ as a function of $m$ &mdash; the attention pattern is a sum of cosines at the comb of frequencies.</p>
+
+    <script>
+    (function(){
+        var d = 8; // 4 pairs
+        var base = 10000;
+        var m = 0;
+        var thetaForPair = function(i){return Math.pow(base, -2*i/d);};
+        // Fix q = k = unit vector, all 1/sqrt(d)
+        var q = []; for (var i = 0; i < d; i++) q.push(1/Math.sqrt(d));
+
+        function render() {
+            // Top: 4 small circles for 4 pairs
+            var s = '';
+            var W = 700, H = 380, plotH = 240;
+            var cellW = W / 4;
+            for (var p = 0; p < 4; p++) {
+                var cx = cellW * (p + 0.5), cy = plotH/2 + 30, r = 60;
+                s += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#21262d" stroke-width="1"/>';
+                s += '<line x1="'+(cx-r-5)+'" y1="'+cy+'" x2="'+(cx+r+5)+'" y2="'+cy+'" stroke="#3a3a3a" stroke-width="0.5"/>';
+                s += '<line x1="'+cx+'" y1="'+(cy-r-5)+'" x2="'+cx+'" y2="'+(cy+r+5)+'" stroke="#3a3a3a" stroke-width="0.5"/>';
+                var t = thetaForPair(p);
+                var ang = m * t;
+                // initial vector (1,0) → rotated (cos, sin) scaled by 1
+                var x = cx + r*Math.cos(ang), y = cy - r*Math.sin(ang);
+                // history path: dotted samples from m=0..current
+                var pathStep = Math.max(1, Math.floor(m/40));
+                var pp = '';
+                for (var k = 0; k <= m; k += pathStep) {
+                    var a = k*t;
+                    var px = cx + r*Math.cos(a), py = cy - r*Math.sin(a);
+                    pp += (pp ? ' L ' : 'M ') + px + ' ' + py;
+                }
+                s += '<path d="'+pp+'" stroke="rgba(167,139,250,0.5)" stroke-width="1.2" fill="none"/>';
+                s += '<line x1="'+cx+'" y1="'+cy+'" x2="'+x+'" y2="'+y+'" stroke="#a78bfa" stroke-width="2"/>';
+                s += '<circle cx="'+x+'" cy="'+y+'" r="5" fill="#f472b6"/>';
+                s += '<text x="'+cx+'" y="'+(cy+r+22)+'" fill="#8b949e" font-family="JetBrains Mono" font-size="11" text-anchor="middle">pair '+p+'  θ='+t.toFixed(4)+'</text>';
+            }
+            document.getElementById('rope-pairs').innerHTML = s;
+            // Bottom: dot product q . R_m q as function of m
+            // = sum over pairs of cos(m theta_p) * (qx^2 + qy^2)
+            // since q is unit and each pair has equal contributions, it's average of cos(m theta_p)
+            var s2 = '';
+            var bx = 50, by = 290, bw = 600, bh = 70;
+            s2 += '<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" fill="none" stroke="#21262d" stroke-width="1"/>';
+            s2 += '<line x1="'+bx+'" y1="'+(by+bh/2)+'" x2="'+(bx+bw)+'" y2="'+(by+bh/2)+'" stroke="#3a3a3a" stroke-width="0.5"/>';
+            var pp2 = '';
+            for (var k = 0; k <= 500; k++) {
+                var ix = bx + k * bw / 500;
+                var sum = 0;
+                for (var p = 0; p < 4; p++) sum += Math.cos(k * thetaForPair(p));
+                sum /= 4;
+                var iy = by + bh/2 - sum * (bh/2 - 4);
+                pp2 += (pp2 ? ' L ' : 'M ') + ix + ' ' + iy;
+            }
+            s2 += '<path d="'+pp2+'" stroke="#34d399" stroke-width="1.5" fill="none"/>';
+            // marker at current m
+            var mx = bx + m * bw / 500;
+            s2 += '<line x1="'+mx+'" y1="'+by+'" x2="'+mx+'" y2="'+(by+bh)+'" stroke="#f472b6" stroke-width="1.5"/>';
+            s2 += '<text x="'+bx+'" y="'+(by-6)+'" fill="#a78bfa" font-family="JetBrains Mono" font-size="11">q · R_m q  vs  m=0..500</text>';
+            document.getElementById('rope-dot').innerHTML = s2;
+        }
+
+        document.getElementById('rope-m').addEventListener('input', function(){ m = parseInt(this.value); document.getElementById('rope-mv').textContent = m; render(); });
+        document.getElementById('rope-base').addEventListener('input', function(){ base = parseInt(this.value); document.getElementById('rope-bv').textContent = base; render(); });
+        render();
+    })();
+    </script>
+</section>
+
+<section class="slide" id="slide-11">
+    <div class="slide-number">11</div>
+    <h2>Cheat Sheet</h2>
+    <ul>
+        <li>An <strong>orthonormal</strong> set has unit norm and zero pairwise inner products. A square <strong>orthogonal matrix</strong> has $Q^\top Q = I$ and $Q^{-1} = Q^\top$.</li>
+        <li>Orthogonal maps are length- and angle-preserving; condition number 1; cheapest possible inverse.</li>
+        <li><strong>Gram-Schmidt</strong> orthogonalises a basis by subtracting projections; gives QR for free. Numerically unstable; production uses Householder or Givens.</li>
+        <li><strong>QR factorisation:</strong> $A = QR$, $Q$ orthonormal columns, $R$ upper triangular. Solving $A\mathbf{x} = \mathbf{b}$ via QR is the stable least-squares route.</li>
+        <li><strong>Orthogonal initialisation</strong> (Saxe et al. 2014): sample Gaussian, run QR, scale by gain. Singular spectrum stays at 1; signal preserved through depth.</li>
+        <li><strong>2D rotation matrix</strong> $R_\theta$ has eigenvalues $e^{\pm i\theta}$. Composition: $R_\alpha R_\beta = R_{\alpha + \beta}$. Inner-product preserving.</li>
+        <li><strong>RoPE</strong>: rotate each $(2i-1, 2i)$ pair by angle $m\theta_i$, with $\theta_i$ a geometric frequency comb. Applied to $\mathbf{q}, \mathbf{k}$ only.</li>
+        <li>RoPE makes the attention score $\mathbf{q}^\top R_{n-m}\mathbf{k}$ &mdash; <strong>relative</strong> position. This is the property that's hard to get any other way at the same cost.</li>
+        <li>Length extrapolation: PI, NTK-aware, YaRN. All are reparameterisations of the frequency comb to keep angles in distribution at longer contexts.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Read next</div>
+        <p>Deck <strong>09 &mdash; Gradients, Jacobians &amp; Backprop</strong> picks up the chain rule from a linear-algebra angle: every backward pass in a neural net is a Jacobian-vector product, and writing forward and backward as matrix algebra shows why autograd works.</p>
+    </div>
+</section>
+
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Linear_Algebra">Linear Algebra for AI / ML</a> series. Sources: Trefethen &amp; Bau, <em>Numerical Linear Algebra</em>; Saxe, McClelland &amp; Ganguli, ICLR 2014; Su et al., "RoFormer: Enhanced Transformer with Rotary Position Embedding", arXiv:2104.09864 (2021); Chen et al., "Extending Context Window of Large Language Models via Positional Interpolation", 2023; Peng et al., "YaRN: Efficient Context Window Extension of Large Language Models", 2023.</p>
+</footer>
+
+</body>
+</html>
